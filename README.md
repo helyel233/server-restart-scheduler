@@ -32,7 +32,6 @@
 scp restart_scheduler.sh restart_runner.sh 用户名@服务器IP:~/
 ```
 
-方式 B（从 GitHub 下载）：见下文「三、发布到 GitHub 后如何启用」。
 
 ### 第 2 步：运行主脚本（必须用 sudo）
 
@@ -98,62 +97,16 @@ cat /var/log/server_restart.log
 
 ---
 
-## 二、发布到 GitHub
 
-这样以后任何一台服务器都能直接下载使用，也方便版本管理。
 
-### 方式 A：GitHub 网页上传（最简单，推荐）
-
-1. 打开 [github.com](https://github.com)，注册并登录账号。
-2. 点右上角 **`+`** 号 → **New repository**。
-3. Repository name 填 `server-restart-scheduler`；选 **Public**（免费）；**不要勾选** "Add a README file"；点 **Create repository**。
-4. 进入仓库页面后，点 **Add file** → **Upload files**。
-5. 把 `restart_scheduler.sh`、`restart_runner.sh`、`README.md` 三个文件**拖进**页面。
-6. 页面下方点 **Commit changes**。
-7. 完成！点进任意文件，再点右上角 **Raw** 按钮，浏览器地址栏就是该文件的下载链接。
-
-### 方式 B：用 git 命令行上传
-
-在存放这三个文件的文件夹里打开终端，依次执行：
-
-```bash
-git init
-git add restart_scheduler.sh restart_runner.sh README.md
-git commit -m "服务器定时重启脚本"
-git branch -M main
-git remote add origin https://github.com/你的用户名/server-restart-scheduler.git
-git push -u origin main
-```
-
-> `https://github.com/你的用户名/server-restart-scheduler.git` 这个地址在仓库页面右上角 **Code** 按钮里复制。
-
-### 获取下载链接（raw 链接）
-
-格式固定为：
-
-```
-https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/文件名
-```
-
-例如：
-
-```
-https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/restart_scheduler.sh
-https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/restart_runner.sh
-```
-
-> 如果创建仓库时默认分支叫 `master`（老账号），把链接里的 `main` 换成 `master` 即可。
-
----
-
-## 三、发布到 GitHub 后，如何在服务器上启用
+## 二、如何在服务器上启用
 
 在任何一台 Linux 服务器上执行（只需几条命令）：
 
 ```bash
 # 1. 下载两个脚本（把"你的用户名"换成你的 GitHub 用户名）
-curl -O https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/restart_scheduler.sh
-curl -O https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/restart_runner.sh
+curl -O https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_scheduler.sh
+curl -O https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_runner.sh
 
 # 2. 给执行权限
 chmod +x restart_scheduler.sh restart_runner.sh
@@ -165,11 +118,11 @@ sudo bash restart_scheduler.sh
 没有 `curl` 的服务器（极少数精简系统）用 `wget` 替代：
 
 ```bash
-wget -O restart_scheduler.sh https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/restart_scheduler.sh
-wget -O restart_runner.sh https://raw.githubusercontent.com/你的用户名/server-restart-scheduler/main/restart_runner.sh
+wget -O restart_scheduler.sh https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_scheduler.sh
+wget -O restart_runner.sh https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_runner.sh
 ```
 
-如果服务器在国内访问 GitHub 较慢，也可以直接在本机下载后 `scp` 上传（见第一部分方式 A）。
+如果服务器在国内访问 GitHub 较慢，也可以直接在本机下载后 `scp` 上传（见第一部分方式）。
 
 ---
 
