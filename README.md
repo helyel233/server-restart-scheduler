@@ -14,11 +14,38 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `restart_scheduler.sh` | 主脚本（交互式菜单）：选择频率、输入时间、自动换算时区、生成并安装计划 |
+| `restart_scheduler.sh` | 主脚本（交互式菜单）：选择频率、输入时间、自动换算时区、生成并安装计划；也支持**命令行一键模式**（见第零节） |
 | `restart_runner.sh` | 重启执行脚本：到点后由 Cron 调用，写日志并执行 `reboot` |
+| `install.sh` | 一键远程安装：一条命令完成下载 + 安装（见第零节） |
 | `README.md` | 本说明文档 |
 
 > 两个脚本必须放在**同一目录**下再运行。
+
+---
+
+## 零、一键命令（推荐）
+
+不想看下面那么多步骤？在服务器上执行**一条命令**即可完成下载和安装：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/install.sh | sudo bash -s -- daily 02:30
+```
+
+- 最后两个参数：**重启频率**（`hourly` / `6h` / `daily` / `3d` / `weekly`）和**第一次重启时间**（北京时间，`HH:MM` 或 `YYYY-MM-DD HH:MM`）
+- 不带参数则下载后进入交互式菜单
+- 例：每周一凌晨 4 点重启 → `... | sudo bash -s -- weekly "2026-09-28 04:00"`
+
+如果已经把脚本下载到了服务器，也可以直接一条命令安装（无需进菜单）：
+
+```bash
+sudo bash restart_scheduler.sh daily 02:30
+```
+
+查看所有支持的类型与格式：
+
+```bash
+sudo bash restart_scheduler.sh --help
+```
 
 ---
 

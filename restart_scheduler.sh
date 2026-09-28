@@ -8,7 +8,8 @@
 #   3. 自动检测服务器时区, 换算为服务器本地时间后写入 Cron
 #   4. 可随时查看 / 取消 / 测试重启
 #  适用: Ubuntu / Debian / CentOS / Rocky Linux / 阿里云 Linux 等
-#  运行: sudo bash restart_scheduler.sh
+#  运行: sudo bash restart_scheduler.sh          (交互菜单)
+#        sudo bash restart_scheduler.sh daily 02:30   (一条命令完成)
 # ============================================================
 
 RUNNER="/usr/local/bin/restart_runner.sh"
@@ -163,6 +164,85 @@ install_plan() {
     ok "新计划已写入 Cron:"
     echo "   $cron_line"
 }
+
+# ---------- 命令行一键模式 ----------
+# 带参数时不再进入交互菜单, 参数即安装:
+#   sudo bash restart_scheduler.sh <类型> <第一次重启时间>
+# 类型: hourly/6h/daily/3d/weekly 或 1-5
+# 时间: HH:MM 或 YYYY-MM-DD HH:MM (北京时间)
+cli_usage() {
+    echo "用法: sudo bash restart_scheduler.sh [类型] [第一次重启时间]"
+    echo ""
+    echo "类型 (二选一):"
+    echo "  1 / hourly   每小时重启一次"
+    echo "  2 / 6h       每 6 小时重启一次"
+    echo "  3 / daily    每天重启一次"
+    echo "  4 / 3d       每 3 天重启一次"
+    echo "  5 / weekly   每周重启一次"
+    echo ""
+    echo "时间 (北京时间): HH:MM 或 YYYY-MM-DD HH:MM"
+    echo ""
+    echo "示例:"
+    echo "  sudo bash restart_scheduler.sh daily 02:30"
+    echo "  sudo bash restart_scheduler.sh 5 \"2026-09-28 04:00\""
+    echo ""
+    echo "不带参数运行则进入交互式菜单。"
+}
+
+if [ $# -gt 0 ]; then
+    case "$1" in
+        -h|--help|help)
+            cli_usage
+            exit 0 ;;
+    esac
+    if [ $# -lt 2 ]; then
+        err "命令行模式需要两个参数: <类型> <时间>"
+        echo ""
+        cli_usage
+        exit 1
+    fi
+    case "$(echo "$1" | tr 'A-Z' 'a-z')" in
+        1|hourly)  TYPE=1 ;;
+        2|6h)      TYPE=2 ;;
+        3|daily)   TYPE=3 ;;
+        4|3d)      TYPE=4 ;;
+        5|weekly)  TYPE=5 ;;
+        *) err "未知类型: $1 (可用: hourly / 6h / daily / 3d / weekly 或 1-5)"; exit 1 ;;
+    esac
+    t="$2"
+    # 只给了时刻则默认为今天的北京时间
+    if [[ "$t" =~ ^[0-9]{1,2}:[0-9]{2}$ ]]; then
+        t="$(get_bj_now | awk '{print $1}') $t"
+    fi
+    if [[ ! "$t" =~ $TIME_RE ]] || ! date -d "$t" "+%F %H:%M" >/dev/null 2>&1; then
+        err "时间无效: $2 (格式: HH:MM 或 YYYY-MM-DD HH:MM, 北京时间)"
+        exit 1
+    fi
+    FIRST_TIME="$t"
+    build_plan "$TYPE" || exit 1
+    echo " ┌─ 计划预览 ────────────────────────"
+    echo " │ 重启类型   : ${TYPE_NAMES[$TYPE]}重启"
+    echo " │ 第一次重启 : $FIRST_TIME  (北京时间 GMT+8)"
+    echo " │ 服务器本地 : $LOCAL_TIME"
+    echo " │ Cron 表达式: $CRON_EXPR $RUNNER"
+    echo " └────────────────────────────────────"
+    if [ "$PLAN_EPOCH" -le "$(date +%s)" ]; then
+        case "$TYPE" in
+            1) warn "该分钟已过, 将从下一个整点开始执行。" ;;
+            2) warn "该时刻已过, 将按每6小时自动顺延到下一个时刻。" ;;
+            3|4) warn "今天该时刻已过, 将从下一个周期 (明天/3天后) 开始执行。" ;;
+            5) warn "本周该时刻已过, 将从下周开始执行。" ;;
+        esac
+    fi
+    install_runner || exit 1
+    install_plan "$CRON_EXPR $RUNNER >/dev/null 2>&1"
+    echo ""
+    ok "安装完成! 常用命令:"
+    echo "   查看计划: crontab -l | grep $RUNNER_NAME"
+    echo "   查看日志: tail -f $LOG_FILE"
+    echo "   取消计划: sudo bash restart_scheduler.sh --help 查看说明后重新运行"
+    exit 0
+fi
 
 # ---------- 主循环 ----------
 while :; do
