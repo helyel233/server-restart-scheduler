@@ -1,12 +1,16 @@
 # 服务器定时重启脚本
 
-Linux 服务器定时重启工具，专为小白设计。全程中文交互菜单，**只需要记住两条命令**：
+Linux 服务器定时重启工具，专为小白设计。全程中文交互菜单，**只需要记住两条命令**。
+
+**第 1 条：安装**（在服务器上复制执行一次即可）
 
 ```bash
-# 第 1 条：安装（在服务器上复制执行一次即可）
 curl -fsSL https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/install.sh | sudo bash
+```
 
-# 第 2 条：打开设置菜单（随时可用）
+**第 2 条：打开设置菜单**（随时可用）
+
+```bash
 sudo restart
 ```
 
