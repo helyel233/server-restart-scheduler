@@ -1,230 +1,79 @@
-# 服务器定时重启脚本 (Server Scheduled Restart)
+# 服务器定时重启脚本
 
-一个简单好用的 Linux 服务器定时重启工具，专为小白设计。全程中文交互菜单，输入一次时间即可自动生成定时计划。
-
-## 功能
-
-- 支持 5 种重启频率：**每小时 / 每6小时 / 每天 / 每3天 / 每周**
-- 指定**第一次重启时间**，以**北京时间 (GMT+8)** 为准
-- **自动检测服务器所在时区**，把北京时间换算成服务器本地时间，再写入 Cron
-- 一键查看当前计划 / 取消计划 / 立即重启测试
-- 安装时自动备份原有定时计划
-
-## 文件说明
-
-| 文件 | 作用 |
-| --- | --- |
-| `restart_scheduler.sh` | 主脚本（交互式菜单）：选择频率、输入时间、自动换算时区、生成并安装计划；也支持**命令行一键模式**（见第零节） |
-| `restart_runner.sh` | 重启执行脚本：到点后由 Cron 调用，写日志并执行 `reboot` |
-| `install.sh` | 一键远程安装：一条命令完成下载 + 安装（见第零节） |
-| `README.md` | 本说明文档 |
-
-> 两个脚本必须放在**同一目录**下再运行。
-
----
-
-## 零、一键命令（推荐）
-
-不想看下面那么多步骤？在服务器上执行**一条命令**即可完成下载和安装：
+Linux 服务器定时重启工具，专为小白设计。全程中文交互菜单，**只需要记住两条命令**：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/install.sh | sudo bash -s -- daily 02:30
+# 第 1 条：安装（在服务器上复制执行一次即可）
+curl -fsSL https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/install.sh | sudo bash
+
+# 第 2 条：打开设置菜单（随时可用）
+sudo restart
 ```
 
-- 最后两个参数：**重启频率**（`hourly` / `6h` / `daily` / `3d` / `weekly`）和**第一次重启时间**（北京时间，`HH:MM` 或 `YYYY-MM-DD HH:MM`）
-- 不带参数则下载后进入交互式菜单
-- 例：每周一凌晨 4 点重启 → `... | sudo bash -s -- weekly "2026-09-28 04:00"`
+所有设置（重启频率、第一次重启时机、查看/取消计划）都在菜单里点选完成，**不需要输入任何参数或时间**。
 
-如果已经把脚本下载到了服务器，也可以直接一条命令安装（无需进菜单）：
+## 支持的系统
 
-```bash
-sudo bash restart_scheduler.sh daily 02:30
-```
+Ubuntu / Debian / CentOS / Rocky Linux / 阿里云 Linux 等主流发行版（自带 `cron` 即可）。
 
-查看所有支持的类型与格式：
+## 交互菜单详解
 
-```bash
-sudo bash restart_scheduler.sh --help
-```
+运行 `sudo restart` 后会看到当前服务器时区与北京时间，然后是主菜单：
 
----
+### 设置定时重启（选项 1~5）
 
-## 一、在服务器上快速使用（3 分钟上手）
+先选一个重启频率：
 
-### 第 1 步：把两个脚本放到服务器
-
-方式 A（本机上传）：把这两个文件从你电脑传到服务器，例如用 `scp`：
-
-```bash
-scp restart_scheduler.sh restart_runner.sh 用户名@服务器IP:~/
-```
-
-
-### 第 2 步：运行主脚本（必须用 sudo）
-
-```bash
-chmod +x restart_scheduler.sh restart_runner.sh
-sudo bash restart_scheduler.sh
-```
-
-### 第 3 步：按菜单操作（示例）
-
-```
-==================================================
-     服务器定时重启脚本 v1.0
-==================================================
- 服务器时区    : CST (+0800)
- 服务器本地时间: 2026-08-13 14:30:05
- 当前北京时间  : 2026-08-13 14:30:05 (GMT+8)
---------------------------------------------------
- 请选择功能:
-   [1] 每小时重启一次
-   [2] 每 6 小时重启一次
-   [3] 每天重启一次
-   [4] 每 3 天重启一次
-   [5] 每周重启一次
-   [6] 查看当前已安装的计划
-   [7] 取消定时重启
-   [8] 立即重启服务器 (慎用!)
-   [0] 退出
---------------------------------------------------
- 请输入编号: 3
-
- 你选择了: 每天重启一次
- 第一次重启时间 [北京时间, 格式 YYYY-MM-DD HH:MM, 例: 2026-08-13 02:30]: 2026-08-14 02:30
-
- ┌─ 计划预览 ────────────────────────
- │ 重启类型   : 每天重启
- │ 第一次重启 : 2026-08-14 02:30  (北京时间 GMT+8)
- │ 服务器本地 : 2026-08-14 02:30 CST (+0800)
- │ Cron 表达式: 30 2 * * * /usr/local/bin/restart_runner.sh
- └────────────────────────────────────
- 确认安装? [y/N]: y
-[OK] 重启执行脚本已就绪: /usr/local/bin/restart_runner.sh
-[OK] 原定时计划已备份到: /root/crontab.backup.20260813_143015
-[OK] 新计划已写入 Cron:
-   30 2 * * * /usr/local/bin/restart_runner.sh >/dev/null 2>&1
-
-[OK] 安装完成! 常用命令:
-   查看计划: crontab -l | grep restart_runner
-   查看日志: tail -f /var/log/server_restart.log
-```
-
-### 第 4 步：验证
-
-```bash
-# 查看已安装的定时计划
-crontab -l | grep restart_runner
-
-# 查看重启记录（重启后服务器会回来，日志文件保留）
-cat /var/log/server_restart.log
-```
-
-如果服务器时区不是北京时间（例如海外服务器），脚本会自动换算，你仍然只需要输入北京时间即可。
-
----
-
-
-
-## 二、如何在服务器上启用
-
-在任何一台 Linux 服务器上执行（只需几条命令）：
-
-```bash
-# 1. 下载两个脚本（把"你的用户名"换成你的 GitHub 用户名）
-curl -O https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_scheduler.sh
-curl -O https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_runner.sh
-
-# 2. 给执行权限
-chmod +x restart_scheduler.sh restart_runner.sh
-
-# 3. 运行主脚本，按菜单选择频率并输入北京时间
-sudo bash restart_scheduler.sh
-```
-
-没有 `curl` 的服务器（极少数精简系统）用 `wget` 替代：
-
-```bash
-wget -O restart_scheduler.sh https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_scheduler.sh
-wget -O restart_runner.sh https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/restart_runner.sh
-```
-
-如果服务器在国内访问 GitHub 较慢，也可以直接在本机下载后 `scp` 上传（见第一部分方式）。
-
----
-
-## 四、工作原理（小白版）
-
-**时区换算**：北京时间 = UTC+8。脚本先检测服务器时区偏移，把你输入的北京时间换算成服务器本地时间，再生成 Cron 计划，保证"在你想的时刻"准时重启。
-
-| 服务器时区 | 你输入的北京时间 | 服务器实际执行时间 |
+| 选项 | 频率 | 说明 |
 | --- | --- | --- |
-| 中国 (UTC+8) | 08-13 02:30 | 08-13 02:30 |
-| 伦敦 (UTC+0) | 08-13 02:30 | 08-12 18:30 |
-| 美东 (UTC-5) | 08-13 02:30 | 08-12 13:30 |
-| 印度 (UTC+5:30) | 08-13 02:30 | 08-13 00:00 |
+| [1] | 每小时 | 每小时整点后的同一分钟重启一次 |
+| [2] | 每 6 小时 | 每 6 小时重启一次（0点、6点、12点、18点方向顺延） |
+| [3] | 每天 | 每天固定时刻重启一次 |
+| [4] | 每 3 天 | 每隔 3 天重启一次（按日期号循环，月底间隔可能略长，属正常） |
+| [5] | 每周 | 每周固定星期几的固定时刻重启一次 |
 
-**Cron 是什么**：Linux 自带的任务计划工具。计划写入 `crontab` 后永久生效，**服务器重启后计划依然存在**，不需要重新设置。
+选完频率后，再选择**第一次重启的时机**（以当前时间为基准，自动换算，无需手动算时间）：
 
----
+| 选项 | 时机 | 说明 |
+| --- | --- | --- |
+| [1] | 立即启用 | 确认安装后倒计时 3 秒，马上执行第一次重启 |
+| [2] ~ [4] | 5 / 10 / 30 分钟后 | 稍等片刻后开始第一次重启 |
+| [5] | 1 小时后 | |
+| [6] ~ [9] | 6 / 12 / 18 / 24 小时后 | 适合选半夜低峰期，例如睡前设 12 小时后 |
 
-## 五、常见问题 (FAQ)
+接着会显示**计划预览**（重启类型、第一次重启的北京时间、服务器本地时间、Cron 表达式），输入 `y` 确认后完成安装。安装会自动备份原有的 crontab。
 
-**1. 为什么一定要用 sudo 运行？**
-重启整个系统需要 root 权限。用 `sudo` 运行后，计划会装在 root 的 crontab 下，到点后以 root 身份执行重启，不会失败。
+之后服务器会按所选周期**自动重启，重启后计划依然有效**，无需重新设置。
 
-**2. 服务器时间/时区不准怎么办？**
-先修正系统时间，否则定时会不准：
+### 管理与其他（选项 6~9）
 
-```bash
-# 查看当前时间与时区
-timedatectl
+| 选项 | 功能 | 说明 |
+| --- | --- | --- |
+| [6] | 查看当前计划 | 显示已安装的 Cron 计划和最近 3 次重启记录；未安装时会有提示 |
+| [7] | 取消定时重启 | 从 crontab 中移除计划（执行脚本与日志保留，随时可重新安装） |
+| [8] | 立即重启服务器 | **慎用！** 需输入 `yes` 确认，3 秒后马上重启 |
+| [0] | 退出 | |
 
-# 设置时区（如上海）
-sudo timedatectl set-timezone Asia/Shanghai
+## 常用文件与命令
 
-# 开启时间自动同步（一般云服务器默认已开启）
-sudo timedatectl set-ntp true
-```
+| 项目 | 路径 / 命令 |
+| --- | --- |
+| 主脚本 | `/usr/local/bin/restart_scheduler.sh` |
+| 重启执行脚本 | `/usr/local/bin/restart_runner.sh` |
+| 重启日志 | `/var/log/server_restart.log` |
+| 查看计划 | `crontab -l \| grep restart_runner` |
+| 查看日志 | `tail -f /var/log/server_restart.log` |
 
-**3. 想改重启时间/频率？**
-重新运行 `sudo bash restart_scheduler.sh`，重新选择即可，会自动覆盖旧计划（旧计划会先备份）。
+## 常见问题
 
-**4. 想取消定时重启？**
-重新运行脚本，选 `[7]` 取消。
-
-**5. "每3天"是怎么计算的？**
-按日期号循环：第一次是 8 月 13 日，则 16、19、22……依此类推（13、16、19... 都是日期号除以 3 余 1 的天）。每月重置一次，月底可能出现 4~5 天的间隔，属正常现象。
-
-**6. 输入的时间已经过了会怎样？**
-脚本会提示。每小时/每6小时类型会自动顺延到下一个周期；每天/每3天/每周类型会从下一个周期开始。
-
-**7. 想先测试流程，但不想真的重启？**
-把服务器上的 `/usr/local/bin/restart_runner.sh` 里最后两行改成：
-
-```bash
-echo "$(date '+%F %T') 模拟重启(未真正重启)" >> "$LOG"
-```
-
-测试完再改回来即可。
-
-**8. 服务器没有 crontab 命令？**
-极少数精简系统没有装 cron。Debian/Ubuntu 系执行：
-
-```bash
-sudo apt update && sudo apt install -y cron
-sudo systemctl enable --now cron
-```
-
-CentOS/Rocky 系：`sudo yum install -y cronie`
-
-**9. 想改成"重启某个服务"而不是整机重启？**
-编辑 `/usr/local/bin/restart_runner.sh`，把 `reboot` 那行换成你的命令（如 `systemctl restart nginx`），计划不变。
-
----
+- **提示找不到 restart 命令？** 退出终端重新登录一次即可（PATH 刷新）。
+- **为什么要 sudo？** 重启系统需要 root 权限，计划会装入 root 的 crontab。
+- **想修改频率或时间？** 再次运行 `sudo restart` 重新设置，会自动覆盖旧计划。
+- **服务器没有 cron？** Debian/Ubuntu：`sudo apt install -y cron`；CentOS/Rocky：`sudo yum install -y cronie`。
+- **想重启某个服务而不是整机？** 编辑 `/usr/local/bin/restart_runner.sh`，把 `reboot` 换成如 `systemctl restart nginx`。
+- **想先测试不真重启？** 把 `/usr/local/bin/restart_runner.sh` 最后的 `reboot` 那行改成写日志的 `echo`，测完改回。
 
 ## 安全提醒
 
-- 重启会中断所有正在运行的程序，**建议把第一次重启时间设在业务低峰期**（如凌晨 02:00~05:00）。
-- 先在一台测试服务器上跑通，再部署到生产环境。
-- 生产环境使用前，请确认业务已配置开机自启动（systemd 服务等），否则重启后服务不会自动拉起。
+- 重启会中断所有运行中的程序，请把重启安排在业务低峰期（如凌晨）。
+- 生产环境使用前，确认业务已配置开机自启（systemd 等），否则重启后服务不会自动拉起。

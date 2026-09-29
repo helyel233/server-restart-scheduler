@@ -1,24 +1,24 @@
 #!/bin/bash
 # ============================================================
-#  服务器定时重启脚本 (Server Scheduled Restart Script) v1.0
+#  服务器定时重启脚本 (Server Scheduled Restart Script) v2.0
 # ------------------------------------------------------------
+#  小白专用: 所有设置都在交互菜单中完成, 不需要输入任何参数。
 #  功能:
 #   1. 选择重启类型: 每小时 / 每6小时 / 每天 / 每3天 / 每周
-#   2. 指定第一次重启时间 (以北京时间 GMT+8 为准)
+#   2. 选择第一次重启时机 (以北京时间 GMT+8 为准):
+#      立即 / 5分钟 / 10分钟 / 30分钟 / 1小时 / 6小时 / 12小时 / 18小时 / 24小时
 #   3. 自动检测服务器时区, 换算为服务器本地时间后写入 Cron
 #   4. 可随时查看 / 取消 / 测试重启
 #  适用: Ubuntu / Debian / CentOS / Rocky Linux / 阿里云 Linux 等
-#  运行: sudo bash restart_scheduler.sh          (交互菜单)
-#        sudo bash restart_scheduler.sh daily 02:30   (一条命令完成)
+#  运行: sudo restart                     (推荐, 安装后可用的快捷命令)
+#        sudo bash restart_scheduler.sh   (效果相同)
+#  安装: curl -fsSL https://raw.githubusercontent.com/helyel233/server-restart-scheduler/main/install.sh | sudo bash
 # ============================================================
 
 RUNNER="/usr/local/bin/restart_runner.sh"
 RUNNER_NAME="restart_runner.sh"
 LOG_FILE="/var/log/server_restart.log"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# 第一次重启时间格式: YYYY-MM-DD HH:MM (北京时间)
-TIME_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$'
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}[OK]${NC} $*"; }
@@ -30,7 +30,7 @@ err()  { echo -e "${RED}[错误]${NC} $*"; }
 if [ "$(id -u)" -ne 0 ]; then
     err "本脚本需要 root 权限才能设置系统定时重启。"
     echo ""
-    echo "  请改用:  sudo bash restart_scheduler.sh"
+    echo "  请改用:  sudo restart"
     echo ""
     exit 1
 fi
@@ -67,7 +67,7 @@ epoch_to_local() {
 show_header() {
     clear 2>/dev/null || true
     echo "=================================================="
-    echo "     服务器定时重启脚本 v1.0"
+    echo "     服务器定时重启脚本 v2.0"
     echo "=================================================="
     echo " 服务器时区    : $(date '+%Z (%z)')"
     echo " 服务器本地时间: $(date '+%F %T')"
@@ -76,36 +76,79 @@ show_header() {
 }
 
 show_menu() {
-    echo " 请选择功能:"
+    echo " 请选择功能 (输入编号后按回车):"
+    echo " 设置定时重启:"
     echo "   [1] 每小时重启一次"
     echo "   [2] 每 6 小时重启一次"
     echo "   [3] 每天重启一次"
     echo "   [4] 每 3 天重启一次"
     echo "   [5] 每周重启一次"
-    echo "   [6] 查看当前已安装的计划"
+    echo " 管理:"
+    echo "   [6] 查看当前计划 (含最近重启记录)"
     echo "   [7] 取消定时重启"
-    echo "   [8] 立即重启服务器 (慎用!)"
+    echo " 其他:"
+    echo "   [8] 立即重启服务器 (慎用! 马上重启, 不等待)"
     echo "   [0] 退出"
     echo "--------------------------------------------------"
 }
 
-# ---------- 输入第一次重启时间 (北京时间) ----------
-ask_first_time() {
-    local t
+# ---------- 选择第一次重启时机 ----------
+# 以当前时刻为基准选择延迟量, 自动换算为第一次重启的北京时间
+DELAY_SECONDS=-1    # -1=尚未选择, 0=立即, >0=延迟秒数
+DELAY_LABEL=""
+
+# 根据 DELAY_SECONDS 计算第一次重启的北京时间
+calc_first_time() {
+    if [ "$DELAY_SECONDS" -eq 0 ]; then
+        local t
+        t="$(get_bj_now)"
+        FIRST_TIME="${t%:*}"          # 去掉秒, 保持 YYYY-MM-DD HH:MM
+    else
+        # 目标时刻 = 当前时间 + 延迟, 向上取整到整分钟, 换算为北京时间墙钟
+        local epoch
+        epoch=$(( $(date +%s) + DELAY_SECONDS ))
+        epoch=$(( epoch + (60 - epoch % 60) % 60 ))
+        FIRST_TIME="$(date -u -d "@$(( epoch + 28800 ))" "+%F %H:%M")"
+    fi
+}
+
+ask_first_delay() {
+    local c
+    echo " 选择第一次重启时机 (基准: 当前北京时间 $(get_bj_now)) :"
+    echo "   [1] 立即启用 (确认后立即开始第一次重启)"
+    echo "   [2] 5 分钟后"
+    echo "   [3] 10 分钟后"
+    echo "   [4] 30 分钟后"
+    echo "   [5] 1 小时后"
+    echo "   [6] 6 小时后"
+    echo "   [7] 12 小时后"
+    echo "   [8] 18 小时后"
+    echo "   [9] 24 小时后"
     while :; do
-        read -r -p " 第一次重启时间 [北京时间, 格式 YYYY-MM-DD HH:MM, 例: 2026-08-13 02:30]: " t
-        t="$(echo "$t" | tr -s ' ')"
-        if [[ ! "$t" =~ $TIME_RE ]]; then
-            err "格式不对, 请按示例输入: 2026-08-13 02:30"
-            continue
-        fi
-        if ! date -d "$t" "+%F %H:%M" >/dev/null 2>&1; then
-            err "时间不存在或无法解析: $t"
-            continue
-        fi
-        FIRST_TIME="$t"
-        return 0
+        read -r -p " 请输入编号 [1-9]: " c
+        case "$c" in
+            1) DELAY_SECONDS=0;     DELAY_LABEL="立即" ;;
+            2) DELAY_SECONDS=300;   DELAY_LABEL="5 分钟后" ;;
+            3) DELAY_SECONDS=600;   DELAY_LABEL="10 分钟后" ;;
+            4) DELAY_SECONDS=1800;  DELAY_LABEL="30 分钟后" ;;
+            5) DELAY_SECONDS=3600;  DELAY_LABEL="1 小时后" ;;
+            6) DELAY_SECONDS=21600; DELAY_LABEL="6 小时后" ;;
+            7) DELAY_SECONDS=43200; DELAY_LABEL="12 小时后" ;;
+            8) DELAY_SECONDS=64800; DELAY_LABEL="18 小时后" ;;
+            9) DELAY_SECONDS=86400; DELAY_LABEL="24 小时后" ;;
+            *) err "无效选项, 请输入 1-9"; continue ;;
+        esac
+        break
     done
+    calc_first_time
+}
+
+# 立即模式: 安装完成后马上执行第一次重启 (由 RUNNER 负责写日志并 reboot)
+run_first_restart_now() {
+    echo ""
+    warn "立即模式: 3 秒后执行第一次重启, 服务器即将重启..."
+    sleep 3
+    "$RUNNER"
 }
 
 # ---------- 生成 Cron 计划 ----------
@@ -165,83 +208,13 @@ install_plan() {
     echo "   $cron_line"
 }
 
-# ---------- 命令行一键模式 ----------
-# 带参数时不再进入交互菜单, 参数即安装:
-#   sudo bash restart_scheduler.sh <类型> <第一次重启时间>
-# 类型: hourly/6h/daily/3d/weekly 或 1-5
-# 时间: HH:MM 或 YYYY-MM-DD HH:MM (北京时间)
-cli_usage() {
-    echo "用法: sudo bash restart_scheduler.sh [类型] [第一次重启时间]"
-    echo ""
-    echo "类型 (二选一):"
-    echo "  1 / hourly   每小时重启一次"
-    echo "  2 / 6h       每 6 小时重启一次"
-    echo "  3 / daily    每天重启一次"
-    echo "  4 / 3d       每 3 天重启一次"
-    echo "  5 / weekly   每周重启一次"
-    echo ""
-    echo "时间 (北京时间): HH:MM 或 YYYY-MM-DD HH:MM"
-    echo ""
-    echo "示例:"
-    echo "  sudo bash restart_scheduler.sh daily 02:30"
-    echo "  sudo bash restart_scheduler.sh 5 \"2026-09-28 04:00\""
-    echo ""
-    echo "不带参数运行则进入交互式菜单。"
-}
-
+# ---------- 不接收任何参数, 一切设置都在交互菜单中完成 ----------
 if [ $# -gt 0 ]; then
-    case "$1" in
-        -h|--help|help)
-            cli_usage
-            exit 0 ;;
-    esac
-    if [ $# -lt 2 ]; then
-        err "命令行模式需要两个参数: <类型> <时间>"
-        echo ""
-        cli_usage
-        exit 1
-    fi
-    case "$(echo "$1" | tr 'A-Z' 'a-z')" in
-        1|hourly)  TYPE=1 ;;
-        2|6h)      TYPE=2 ;;
-        3|daily)   TYPE=3 ;;
-        4|3d)      TYPE=4 ;;
-        5|weekly)  TYPE=5 ;;
-        *) err "未知类型: $1 (可用: hourly / 6h / daily / 3d / weekly 或 1-5)"; exit 1 ;;
-    esac
-    t="$2"
-    # 只给了时刻则默认为今天的北京时间
-    if [[ "$t" =~ ^[0-9]{1,2}:[0-9]{2}$ ]]; then
-        t="$(get_bj_now | awk '{print $1}') $t"
-    fi
-    if [[ ! "$t" =~ $TIME_RE ]] || ! date -d "$t" "+%F %H:%M" >/dev/null 2>&1; then
-        err "时间无效: $2 (格式: HH:MM 或 YYYY-MM-DD HH:MM, 北京时间)"
-        exit 1
-    fi
-    FIRST_TIME="$t"
-    build_plan "$TYPE" || exit 1
-    echo " ┌─ 计划预览 ────────────────────────"
-    echo " │ 重启类型   : ${TYPE_NAMES[$TYPE]}重启"
-    echo " │ 第一次重启 : $FIRST_TIME  (北京时间 GMT+8)"
-    echo " │ 服务器本地 : $LOCAL_TIME"
-    echo " │ Cron 表达式: $CRON_EXPR $RUNNER"
-    echo " └────────────────────────────────────"
-    if [ "$PLAN_EPOCH" -le "$(date +%s)" ]; then
-        case "$TYPE" in
-            1) warn "该分钟已过, 将从下一个整点开始执行。" ;;
-            2) warn "该时刻已过, 将按每6小时自动顺延到下一个时刻。" ;;
-            3|4) warn "今天该时刻已过, 将从下一个周期 (明天/3天后) 开始执行。" ;;
-            5) warn "本周该时刻已过, 将从下周开始执行。" ;;
-        esac
-    fi
-    install_runner || exit 1
-    install_plan "$CRON_EXPR $RUNNER >/dev/null 2>&1"
+    err "本脚本不接收参数, 所有设置都在交互菜单里完成。"
     echo ""
-    ok "安装完成! 常用命令:"
-    echo "   查看计划: crontab -l | grep $RUNNER_NAME"
-    echo "   查看日志: tail -f $LOG_FILE"
-    echo "   取消计划: sudo bash restart_scheduler.sh --help 查看说明后重新运行"
-    exit 0
+    echo "  请运行:  sudo restart"
+    echo ""
+    exit 1
 fi
 
 # ---------- 主循环 ----------
@@ -254,16 +227,20 @@ while :; do
             TYPE="$choice"
             echo ""
             echo " 你选择了: ${TYPE_NAMES[$TYPE]}重启一次"
-            ask_first_time
+            ask_first_delay
             build_plan "$TYPE" || continue
             echo ""
             echo " ┌─ 计划预览 ────────────────────────"
             echo " │ 重启类型   : ${TYPE_NAMES[$TYPE]}重启"
-            echo " │ 第一次重启 : $FIRST_TIME  (北京时间 GMT+8)"
+            if [ "$DELAY_SECONDS" -eq 0 ]; then
+                echo " │ 第一次重启 : 立即 (确认后马上重启, 之后按周期自动执行)"
+            else
+                echo " │ 第一次重启 : $FIRST_TIME  (北京时间 GMT+8, $DELAY_LABEL)"
+            fi
             echo " │ 服务器本地 : $LOCAL_TIME"
             echo " │ Cron 表达式: $CRON_EXPR $RUNNER"
             echo " └────────────────────────────────────"
-            if [ "$PLAN_EPOCH" -le "$(date +%s)" ]; then
+            if [ "$DELAY_SECONDS" -ne 0 ] && [ "$PLAN_EPOCH" -le "$(date +%s)" ]; then
                 case "$TYPE" in
                     1) warn "该分钟已过, 将从下一个整点开始执行。" ;;
                     2) warn "该时刻已过, 将按每6小时自动顺延到下一个时刻。" ;;
@@ -276,10 +253,13 @@ while :; do
                 install_runner || continue
                 install_plan "$CRON_EXPR $RUNNER >/dev/null 2>&1"
                 echo ""
-                ok "安装完成! 常用命令:"
-                echo "   查看计划: crontab -l | grep $RUNNER_NAME"
+                ok "安装完成! 之后随时可以:"
+                echo "   打开菜单: sudo restart"
                 echo "   查看日志: tail -f $LOG_FILE"
-                echo "   取消计划: 重新运行本脚本, 选 [7]"
+                echo "   取消计划: 打开菜单选 [7]"
+                if [ "$DELAY_SECONDS" -eq 0 ]; then
+                    run_first_restart_now
+                fi
                 echo ""
                 break ;;
             *)
